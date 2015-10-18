@@ -65,8 +65,8 @@ for train_indexes, test_indexes in kf:
     test = data[test_indexes]
     test_answers = labels[test_indexes]
 
-    # clf = MultinomialNB().fit(train, train_answers)
-    clf = svm.SVC().fit(train, train_answers)
+    clf = MultinomialNB().fit(train, train_answers)
+    # clf = svm.SVC().fit(train, train_answers)
 
     score = clf.score(test, test_answers)
     print score
