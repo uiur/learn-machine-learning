@@ -1,11 +1,14 @@
 # coding: utf-8
 import sys
+import re
 import glob
 import MeCab
 from gensim import corpora, matutils
 import random
+import numpy as np
 
 from sklearn.naive_bayes import MultinomialNB
+from sklearn import cross_validation
 
 mecab = MeCab.Tagger('mecabrc')
 
@@ -33,44 +36,38 @@ def tokenize(text):
 
 dictionary = corpora.Dictionary.load('./test.dict')
 
-# 1: dokujo
-# 0: otherwise
+data_paths = glob.glob('./data/**/*.txt')
 
-labels = []
-train_data_paths = []
+def is_dokujo(path):
+    if re.search("dokujo-tsushin", path):
+        return 1
+    else:
+        return 0
 
+labels = np.array(map(is_dokujo, data_paths))
 
-dokujo_limit = 400
-other_limit  = dokujo_limit / 4
-
-dokujo_paths = glob.glob('./data/dokujo-tsushin/*.txt')
-random.shuffle(dokujo_paths)
-train_data_paths += dokujo_paths[:dokujo_limit]
-
-for i in range(dokujo_limit):
-    labels.append(1)
-
-for type in ['it-life-hack', 'kaden-channel', 'movie-enter', 'sports-watch']:
-    paths = glob.glob('./data/%s/*.txt' % type)
-    random.shuffle(paths)
-    train_data_paths += paths[:other_limit]
-    for i in range(other_limit):
-        labels.append(0)
-
-train_data = []
-
-for path in train_data_paths:
+bows = []
+for path in data_paths:
     input = open(path).read()
     bow = dictionary.doc2bow(tokenize(input))
-    train_data.append(bow)
+    bows.append(bow)
 
-train = matutils.corpus2dense(train_data, num_terms=len(dictionary)).T
+data = matutils.corpus2dense(bows, num_terms=len(dictionary)).T
 
-clf = MultinomialNB().fit(train, labels)
+scores = []
 
-input = sys.stdin.read()
+kf = cross_validation.KFold(len(data), n_folds=4, shuffle=True)
+for train_indexes, test_indexes in kf:
+    train = data[train_indexes]
+    train_answers = labels[train_indexes]
 
-bow = dictionary.doc2bow(tokenize(input))
-v = matutils.corpus2dense([bow], num_terms=len(dictionary)).T
+    test = data[test_indexes]
+    test_answers = labels[test_indexes]
 
-print clf.predict(v)
+    clf = MultinomialNB().fit(train, train_answers)
+
+    score = clf.score(test, test_answers)
+    print score
+    scores.append(score)
+
+print "Mean: %.5f" % np.mean(scores)
